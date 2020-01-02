@@ -101,5 +101,5 @@ class BaseDataProvider(object, metaclass=ABCMeta):
             raise NotImplementedError
 
         formatted[date_col] = formatted[date_col].values.astype(np.int64) // 10 ** 9
-
+        
         return formatted

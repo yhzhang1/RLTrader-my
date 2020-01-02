@@ -16,8 +16,60 @@ from stable_baselines import PPO2
 from lib.env.TradingEnv import TradingEnv
 from lib.env.reward import BaseRewardStrategy, IncrementalProfit, WeightedUnrealizedProfit
 from lib.data.providers.dates import ProviderDateFormat
-from lib.data.providers import BaseDataProvider,  StaticDataProvider, ExchangeDataProvider
+from lib.data.providers import BaseDataProvider,  StaticDataProvider, ExchangeDataProvider, VbDataProvider
 from lib.util.logger import init_logger
+
+vb_factor_columns = ['f124',
+ 'f123',
+ 'f102',
+ 'f200',
+ 'f203',
+ 'f080',
+ 'f154',
+ 'f137',
+ 'f198',
+ 'f128',
+ 'f206',
+ 'f039',
+ 'f082',
+ 'rsrs_skew',
+ 'f136',
+ 'f158',
+ 'f104',
+ 'f205',
+ 'f204',
+ 'f053',
+ 'f199',
+ 'f197',
+ 'f012',
+ 'f077',
+ 'f098',
+ 'f207',
+ 'f048',
+ 'f097',
+ 'f041',
+ 'f038',
+ 'f083',
+ 'f129',
+ 'f073',
+ 'f149',
+ 'f195',
+ 'f016',
+ 'f070',
+ 'f028',
+ 'f209',
+ 'f085',
+ 'f050',
+ 'f029',
+ 'f100',
+ 'f117',
+ 'f018',
+ 'f017',
+ 'f208',
+ 'f143',
+ 'f099',
+ 'f054',
+ 'f062']
 
 
 def make_env(data_provider: BaseDataProvider, rank: int = 0, seed: int = 0):
@@ -78,6 +130,13 @@ class RLTrader:
                                                     data_columns=data_columns)
         elif self.data_provider == 'exchange':
             self.data_provider = ExchangeDataProvider(**self.exchange_args)
+        # edited
+        elif self.data_provider == 'vb':
+            variety = 'RB'
+            in_columns = ['Date', 'open', 'close', 'a1', 'a1v', 'b1', 'b1v', 'up_down_limit'] + vb_factor_columns
+            columns = ['Date', 'open', 'Close', 'a1', 'a1v', 'b1', 'b1v', 'up_down_limit'] + vb_factor_columns
+            data_columns = dict(zip(columns, in_columns))
+            self.data_provider = VbDataProvider(data_columns=data_columns, variety = 'RB')
 
         self.logger.debug(f'Initialized Features: {self.data_provider.columns}')
 
@@ -237,26 +296,39 @@ class RLTrader:
                 model.save(model_path)
 
                 if test_trained_model:
-                    self.test(model_epoch,
+                    
+                    self.test(dataset_name = 'train',
+                              model_epoch=model_epoch,
+                              render_env=render_test_env,
+                              render_report=render_report,
+                              save_report=save_report)
+                    
+                    self.test(dataset_name = 'test',
+                              model_epoch=model_epoch,
                               render_env=render_test_env,
                               render_report=render_report,
                               save_report=save_report)
 
         self.logger.info(f'Trained {n_epochs} models')
 
-    def test(self, model_epoch: int = 0, render_env: bool = True, render_report: bool = True, save_report: bool = False):
+    def test(self, dataset_name: str = 'test', model_epoch: int = 0, render_env: bool = True, render_report: bool = True, save_report: bool = False):
         train_provider, test_provider = self.data_provider.split_data_train_test(self.train_split_percentage)
 
-        del train_provider
+        if dataset_name == 'test':
+            del train_provider
+            data_provider = test_provider
+        else:
+            del test_provider
+            data_provider =  train_provider
 
-        init_envs = DummyVecEnv([make_env(test_provider) for _ in range(self.n_envs)])
+        init_envs = DummyVecEnv([make_env(data_provider) for _ in range(self.n_envs)])
 
         model_path = path.join('data', 'agents', f'{self.study_name}__{model_epoch}.pkl')
         model = self.Model.load(model_path, env=init_envs)
 
-        test_env = DummyVecEnv([make_env(test_provider) for _ in range(1)])
+        test_env = DummyVecEnv([make_env(data_provider) for _ in range(1)])
 
-        self.logger.info(f'Testing model ({self.study_name}__{model_epoch})')
+        self.logger.info(f'Testing model ({self.study_name}__{model_epoch}__{dataset_name})')
 
         zero_completed_obs = np.zeros((self.n_envs,) + init_envs.observation_space.shape)
         zero_completed_obs[0, :] = test_env.reset()
@@ -264,7 +336,7 @@ class RLTrader:
         state = None
         rewards = []
 
-        for _ in range(len(test_provider.data_frame)):
+        for _ in range(len(data_provider.data_frame)):
             action, state = model.predict(zero_completed_obs, state=state)
             obs, reward, done, info = test_env.step([action[0]])
 
@@ -288,8 +360,8 @@ class RLTrader:
                     qs.plots.snapshot(returns.Balance, title='RL Trader Performance')
 
                 if save_report:
-                    reports_path = path.join('data', 'reports', f'{self.study_name}__{model_epoch}.html')
+                    reports_path = path.join('data', 'reports', dataset_name, f'{self.study_name}__{model_epoch}.html')
                     qs.reports.html(returns.Balance, file=reports_path)
 
         self.logger.info(
-            f'Finished testing model ({self.study_name}__{model_epoch}): ${"{:.2f}".format(np.sum(rewards))}')
+            f'Finished testing model ({self.study_name}__{model_epoch}__{dataset_name}): ${"{:.2f}".format(np.sum(rewards))}')

@@ -223,6 +223,8 @@ class TradingEnv(gym.Env):
         reward = self._reward()
         done = self._done()
 
+
+
         return obs, reward, done, {'net_worths': self.net_worths, 'timestamps': self.timestamps}
 
     def render(self, mode='human'):

@@ -43,6 +43,7 @@ if __name__ == '__main__':
 
     trader = RLTrader(**vars(args), logger=logger, reward_strategy=reward_strategy)
 
+
     if args.command == 'train':
         trader.train(n_epochs=args.epochs,
                      save_every=args.save_every,

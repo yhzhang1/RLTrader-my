@@ -51,15 +51,17 @@ class RLTraderCLI:
         optimize_parser.add_argument('--eval-tests', type=int, default=1, help='Number of tests per pruning evaluation')
 
         train_parser = subparsers.add_parser('train', description='Train model')
-        train_parser.add_argument('--epochs', type=int, default=10, help='Number of epochs to train')
+        train_parser.add_argument('--epochs', type=int, default=1000, help='Number of epochs to train')
         train_parser.add_argument('--save-every', type=int, default=1, help='Save the trained model every n epochs')
         train_parser.add_argument('--no-test', dest="test_trained", action="store_false", help='Test each saved model')
         train_parser.add_argument('--render-test', dest="render_test",
-                                  action="store_true", help='Render the test environment')
+                                  action="store_true", help='Render the test environment',
+                                  default=False)
         train_parser.add_argument('--no-report', dest="render_report", action="store_false",
                                   help='Render the performance report')
         train_parser.add_argument('--save-report', dest="save_report", action="store_true",
-                                  help='Save the performance report as .html')
+                                  help='Save the performance report as .html',
+                                  default=True)
 
         test_parser = subparsers.add_parser('test', description='Test model')
         test_parser.add_argument('--model-epoch', type=int, default=0, help='Model epoch index')
